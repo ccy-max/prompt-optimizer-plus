@@ -191,7 +191,6 @@ class SettingsStore:
         "ctx_trunc_marker": True,
         # v1.4.0: 项目感知
         "include_project": True,
-        "project_depth": 2,
     }
 
     def __init__(self, path: str | Path | None = None):

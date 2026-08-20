@@ -235,7 +235,7 @@ qwenpaw plugin uninstall prompt-optimizer-plus
 | 框架 | 解析 pom.xml / package.json 依赖 | Spring Boot, MyBatis-Plus, Sa-Token |
 | 关键配置 | Java 版本、包名、Spring Boot 版本 | java_version=17, package=com.ruoyi |
 | 模块 | Maven modules / monorepo workspaces | ruoyi-admin, ruoyi-system |
-| 目录结构 | 顶层目录/文件（depth 1/2 可调） | backend/, frontend/, sql/ |
+| 目录结构 | 顶层目录/文件 + 子模块目录（固定扫描 2 层） | backend/, frontend/, sql/ |
 
 ### 缓存策略
 
@@ -335,7 +335,7 @@ WORKING_DIR/plugin_data/prompt-optimizer-plus/
 - **签名缓存**：关键配置 mtime+size 哈希，无变更 0 扫描直接命中；`project_cache.json` 持久化
 - **新接口**：`GET /project-info`（识别结果预览）、`POST /project/rescan`（强制重扫）
 - **聚合目录识别**：项目根无语言标记时扫一层子目录（多项目工作区场景）
-- **前端设置 Tab 化**：⚙️ 弹窗改为「插件设置」（上下文截取｜项目感知），项目感知 Tab 含开关/深度/项目卡片/重扫/用法说明
+- **前端设置 Tab 化**：⚙️ 弹窗改为「插件设置」（上下文截取｜项目感知），项目感知 Tab 含开关/项目卡片/重扫/用法说明；扫描深度固定 2 层（移除可配置项）
 - **请求详情 ⓘ**：新增「项目感知」区块展示注入结果
 
 ### v1.3.5 (2026-08-15)

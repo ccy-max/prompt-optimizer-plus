@@ -550,7 +550,6 @@
       ctx_trunc_marker: settings.ctx_trunc_marker!==undefined?settings.ctx_trunc_marker:true,
       // v1.4.0: 项目感知
       include_project: settings.include_project!==undefined?settings.include_project:true,
-      project_depth: settings.project_depth||2,
     };
     var _ctxFS=React.useState(_ctxInitForm),_cf=_ctxFS[0],_setCF=_ctxFS[1];
     function _ctxUF(k,v){var n=Object.assign({},_cf);n[k]=v;_setCF(n);}
@@ -1058,7 +1057,7 @@
           h("div",{style:{fontSize:10,color:"#8a94a2",marginBottom:12}},"原始 3000 字 → 截取后 "+_prevResult.length+" 字（保留 "+Math.floor(_prevResult.length/30)+"%）"),
           // 按钮
           h("div",{style:{display:"flex",justifyContent:"space-between"}},
-            h("button",{className:"po-action",onClick:function(){_setCF({ctx_trunc_head:true,ctx_trunc_middle:false,ctx_trunc_tail:true,ctx_trunc_head_b:500,ctx_trunc_middle_b:1000,ctx_trunc_tail_b:500,ctx_trunc_unit:"char",ctx_trunc_marker:true,include_project:_cf.include_project,project_depth:_cf.project_depth});}},"恢复默认"),
+            h("button",{className:"po-action",onClick:function(){_setCF({ctx_trunc_head:true,ctx_trunc_middle:false,ctx_trunc_tail:true,ctx_trunc_head_b:500,ctx_trunc_middle_b:1000,ctx_trunc_tail_b:500,ctx_trunc_unit:"char",ctx_trunc_marker:true,include_project:_cf.include_project});}},"恢复默认"),
             h("button",{className:"po-action po-primary",onClick:function(){
               var ns=Object.assign({},settings,_cf);
               saveSettings(ns);
@@ -1074,19 +1073,6 @@
                 h("span",{style:{fontSize:12}},"包含项目上下文（自动注入 {{projectContext}}）")
               ),
               h("div",{style:{fontSize:10,color:"#8a94a2",marginTop:4}},"开启后优化时会自动注入当前项目的语言、框架、目录结构等信息")
-            ),
-            h("div",{style:{marginBottom:12}},
-              h("div",{className:"po-help-h",style:{marginBottom:6}},"扫描深度"),
-              h("div",{style:{display:"flex",gap:16}},
-                h("label",{style:{display:"flex",alignItems:"center",gap:4,cursor:"pointer"}},
-                  h("input",{type:"radio",name:"pj-depth",checked:_cf.project_depth===1,onChange:function(){_ctxUF("project_depth",1);}}),
-                  h("span",{style:{fontSize:12}},"1 层（仅顶层目录）")
-                ),
-                h("label",{style:{display:"flex",alignItems:"center",gap:4,cursor:"pointer"}},
-                  h("input",{type:"radio",name:"pj-depth",checked:_cf.project_depth!==1,onChange:function(){_ctxUF("project_depth",2);}}),
-                  h("span",{style:{fontSize:12}},"2 层（含子模块）")
-                )
-              )
             ),
             h("div",{style:{marginBottom:12}},
               h("div",{style:{display:"flex",alignItems:"center",marginBottom:6}},
@@ -1109,7 +1095,7 @@
             ),
             // 按钮
             h("div",{style:{display:"flex",justifyContent:"space-between"}},
-              h("button",{className:"po-action",onClick:function(){_setCF({ctx_trunc_head:true,ctx_trunc_middle:false,ctx_trunc_tail:true,ctx_trunc_head_b:500,ctx_trunc_middle_b:1000,ctx_trunc_tail_b:500,ctx_trunc_unit:"char",ctx_trunc_marker:true,include_project:true,project_depth:2});}},"恢复默认"),
+              h("button",{className:"po-action",onClick:function(){_setCF({ctx_trunc_head:true,ctx_trunc_middle:false,ctx_trunc_tail:true,ctx_trunc_head_b:500,ctx_trunc_middle_b:1000,ctx_trunc_tail_b:500,ctx_trunc_unit:"char",ctx_trunc_marker:true,include_project:true});}},"恢复默认"),
               h("button",{className:"po-action po-primary",onClick:function(){
                 var ns=Object.assign({},settings,_cf);
                 saveSettings(ns);

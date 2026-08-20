@@ -485,14 +485,13 @@ async def optimize_prompt(body: OptimizeBody, request: Request):
 
     tools_data = await _fetch_tools(request)
 
-    # v1.4.0: 项目感知 — 从设置开关与深度拉取当前项目信息（带缓存）
+    # v1.4.0: 项目感知 — 从设置开关拉取当前项目信息（深度固定 2，带缓存）
     project_data = None
     _sett = _get_settings_store().get()
     include_project = bool(_sett.get("include_project", True))
-    project_depth = int(_sett.get("project_depth", 2) or 2)
     if include_project:
         try:
-            project_data = await _fetch_project_info(request, project_depth)
+            project_data = await _fetch_project_info(request)
         except Exception as exc:
             logger.warning("[prompt-optimizer-plus] project context failed: %s", exc)
             project_data = None
@@ -595,7 +594,6 @@ class SettingsBody(BaseModel):
     ctx_trunc_unit: Optional[str] = None
     ctx_trunc_marker: Optional[bool] = None
     include_project: Optional[bool] = None
-    project_depth: Optional[int] = None
 
 
 @router.get("/settings")
@@ -830,10 +828,8 @@ async def _fetch_project_info(request: Request, depth: int = 2, force: bool = Fa
 @router.get("/project-info")
 async def get_project_info(request: Request, refresh: int = Query(0)):
     """返回当前项目识别结果（前端设置弹窗预览 / 调试用）。refresh=1 强制重扫。"""
-    _sett = _get_settings_store().get()
-    depth = int(_sett.get("project_depth", 2) or 2)
     try:
-        info = await _fetch_project_info(request, depth=depth, force=bool(refresh))
+        info = await _fetch_project_info(request, depth=2, force=bool(refresh))
         return {"ok": True, "project": info}
     except Exception as exc:
         return {"ok": False, "project": None, "error": str(exc)}
@@ -842,10 +838,8 @@ async def get_project_info(request: Request, refresh: int = Query(0)):
 @router.post("/project/rescan")
 async def rescan_project(request: Request):
     """强制重新扫描当前项目并返回结果。"""
-    _sett = _get_settings_store().get()
-    depth = int(_sett.get("project_depth", 2) or 2)
     try:
-        info = await _fetch_project_info(request, depth=depth, force=True)
+        info = await _fetch_project_info(request, depth=2, force=True)
         return {"ok": True, "project": info}
     except Exception as exc:
         return {"ok": False, "project": None, "error": str(exc)}
