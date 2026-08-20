@@ -186,6 +186,14 @@
     try { var r = await fetch(apiBase + "/settings", { method: "PUT", headers: apiHeaders(), body: JSON.stringify(settings) }); return r.ok; } catch (e) { return false; }
   }
 
+  // v1.4.0: 项目感知 API
+  async function fetchProjectInfo(refresh) {
+    try { var r = await fetch(apiBase + "/project-info" + (refresh ? "?refresh=1" : ""), { headers: apiHeaders(), cache: "no-store" }); if (!r.ok) return null; var d = await r.json(); return d.project || null; } catch (e) { return null; }
+  }
+  async function rescanProject() {
+    try { var r = await fetch(apiBase + "/project/rescan", { method: "POST", headers: apiHeaders() }); if (!r.ok) return null; var d = await r.json(); return d.project || null; } catch (e) { return null; }
+  }
+
   // --- 自定义变量 API ---
   async function fetchVariables() {
     try { var r = await fetch(apiBase + "/variables?_=" + Date.now(), { headers: apiHeaders(), cache: "no-store" }); if (!r.ok) return []; var d = await r.json(); return d.variables || []; } catch (e) { return []; }
@@ -526,10 +534,32 @@
     var rds=React.useState(null), reqDetails=rds[0], setReqDetails=rds[1]; // v1.3.2: 优化请求详情
     var dos=React.useState(false), detailsOpen=dos[0], setDetailsOpen=dos[1];
     var cts=React.useState(false), ctxSettingsOpen=cts[0], setCtxSettingsOpen=cts[1]; // v1.3.4: 上下文截取设置
+    // v1.4.0: 设置 Tab（trunc=上下文截取, project=项目感知）+ 项目信息
+    var cst=React.useState("trunc"), ctxSettingsTab=cst[0], setCtxSettingsTab=cst[1];
+    var pjs=React.useState(null), projectInfo=pjs[0], setProjectInfo=pjs[1];
+    var psl=React.useState(false), projectScanLoading=psl[0], setProjectScanLoading=psl[1];
     // v1.3.4: 截取设置的表单 state（必须在条件块外声明，不能条件性调用 hooks）
-    var _ctxInitForm=settings.ctx_trunc_head!==undefined?settings:{ctx_trunc_head:true,ctx_trunc_middle:false,ctx_trunc_tail:true,ctx_trunc_head_b:500,ctx_trunc_middle_b:1000,ctx_trunc_tail_b:500,ctx_trunc_unit:"char",ctx_trunc_marker:true};
+    var _ctxInitForm={
+      ctx_trunc_head: settings.ctx_trunc_head!==undefined?settings.ctx_trunc_head:true,
+      ctx_trunc_middle: settings.ctx_trunc_middle!==undefined?settings.ctx_trunc_middle:false,
+      ctx_trunc_tail: settings.ctx_trunc_tail!==undefined?settings.ctx_trunc_tail:true,
+      ctx_trunc_head_b: settings.ctx_trunc_head_b||500,
+      ctx_trunc_middle_b: settings.ctx_trunc_middle_b||1000,
+      ctx_trunc_tail_b: settings.ctx_trunc_tail_b||500,
+      ctx_trunc_unit: settings.ctx_trunc_unit||"char",
+      ctx_trunc_marker: settings.ctx_trunc_marker!==undefined?settings.ctx_trunc_marker:true,
+      // v1.4.0: 项目感知
+      include_project: settings.include_project!==undefined?settings.include_project:true,
+      project_depth: settings.project_depth||2,
+    };
     var _ctxFS=React.useState(_ctxInitForm),_cf=_ctxFS[0],_setCF=_ctxFS[1];
     function _ctxUF(k,v){var n=Object.assign({},_cf);n[k]=v;_setCF(n);}
+    // v1.4.0: 加载项目信息 / 重新扫描
+    function _loadProjectInfo(refresh){
+      setProjectScanLoading(true);
+      var p = refresh ? rescanProject() : fetchProjectInfo(false);
+      (p||Promise.resolve(null)).then(function(pj){ setProjectInfo(pj||null); setProjectScanLoading(false); }).catch(function(){ setProjectScanLoading(false); });
+    }
 
     // v2.12: 面板状态变化 → 写回全局缓存（重开恢复）
     React.useEffect(function(){
@@ -623,6 +653,7 @@
         rendered_system_prompt: _d.rendered_system_prompt||tpl.system_prompt,
         rendered_user_prompt: _d.rendered_user_prompt||tpl.user_prompt,
         custom_variables: _d.custom_variables||null,
+        project_info: _d.project_info||null,  // v1.4.0
         user_input: currentInput, include_context: settings.include_context || tpl.include_context,
         context_rounds: settings.context_rounds || tpl.context_rounds,
       });
@@ -660,6 +691,7 @@
         rendered_system_prompt: _d.rendered_system_prompt||tpl.system_prompt,
         rendered_user_prompt: _d.rendered_user_prompt||tpl.user_prompt,
         custom_variables: _d.custom_variables||null,
+        project_info: _d.project_info||null,  // v1.4.0
         user_input: nextInput, include_context: settings.include_context || tpl.include_context,
         context_rounds: settings.context_rounds || tpl.context_rounds,
         iterate: true, original_prompt: oriRef.current || nextInput,
@@ -757,7 +789,7 @@
           overlayStyle: {width: 400}, overlayClassName: "po-popover-shadow",
           content: h(VariableManager, {React:React, antd:antd, variables:variables, onClose:function(){setVarManagerOpen(false);}, onRefresh:function(){fetchVariables().then(function(v){cachedVariables=v;setVariables(v);});}})
         }, h("button",{className:"po-head-btn",title:"自定义变量"},(antdIcons && antdIcons.BlockOutlined) ? h(antdIcons.BlockOutlined,{style:{fontSize:14}}) : "≡")),
-        h("button",{className:"po-head-btn",onClick:function(){setCtxSettingsOpen(true);},key:"ctx-settings",title:"上下文截取设置"},(antdIcons && antdIcons.SettingOutlined) ? h(antdIcons.SettingOutlined,{style:{fontSize:14}}) : "⚙"),
+        h("button",{className:"po-head-btn",onClick:function(){setCtxSettingsOpen(true);},key:"ctx-settings",title:"插件设置"},(antdIcons && antdIcons.SettingOutlined) ? h(antdIcons.SettingOutlined,{style:{fontSize:14}}) : "⚙"),
         h("button",{className:"po-head-btn",onClick:function(){setHelpOpen(true);},key:"help",title:"内置变量使用说明"},(antdIcons && antdIcons.QuestionCircleOutlined) ? h(antdIcons.QuestionCircleOutlined,{style:{fontSize:14}}) : "?\uFE0E"),
         h("button",{className:"po-head-btn",onClick:props.onMinimize,key:"min",title:"收起（保留状态）"},"−\uFE0E"),
         h("button",{className:"po-head-btn",onClick:props.onClose,key:"close",title:"关闭（清除状态）"},"✕\uFE0E")
@@ -863,7 +895,8 @@
               h("tr",null,h("td",null,"{{iterateInput}}"),h("td",null,"本轮迭代的输入内容")),
               h("tr",null,h("td",null,"{{lastOptimizedPrompt}}"),h("td",null,"上一次优化的结果")),
               h("tr",null,h("td",null,"{{conversationContext}}"),h("td",null,"当前会话上下文（JSON 消息数组，勾选「包含上下文」才有）")),
-              h("tr",null,h("td",null,"{{toolsContext}}"),h("td",null,"当前 agent 可用工具列表（JSON）"))
+              h("tr",null,h("td",null,"{{toolsContext}}"),h("td",null,"当前 agent 可用工具列表（JSON）")),
+              h("tr",null,h("td",null,"{{projectContext}}"),h("td",null,"当前项目信息（JSON，勾选「包含项目上下文」才有）：项目名/语言/框架/模块/结构等"))
             )
           ),
           h("div",{className:"po-help-h"},"模板语法"),
@@ -894,6 +927,16 @@
       if(reqDetails.custom_variables&&Object.keys(reqDetails.custom_variables).length>0){
         var cvLines=Object.keys(reqDetails.custom_variables).map(function(k){return k+" = "+(reqDetails.custom_variables[k]||"(空)");}).join("\n");
         rdContent.push(h("div",{key:"rd-var"},h("div",{className:"po-help-h"},"自定义变量"),h("div",{className:"po-help-code"},cvLines)));
+      }
+      // v1.4.0: 项目感知注入
+      if(reqDetails.project_info){
+        var pj=reqDetails.project_info, pjLines=[]
+        if(pj.name) pjLines.push("名称: " + pj.name);
+        if(pj.language) pjLines.push("语言: " + pj.language);
+        if(pj.frameworks&&pj.frameworks.length) pjLines.push("框架: " + pj.frameworks.join(", "));
+        if(pj.build_tool) pjLines.push("构建: " + pj.build_tool);
+        if(pj.modules&&pj.modules.length) pjLines.push("模块: " + pj.modules.join(", "));
+        rdContent.push(h("div",{key:"rd-pj"},h("div",{className:"po-help-h"},"项目感知"),h("div",{className:"po-help-code"},pjLines.length?pjLines.join("\n"):JSON.stringify(pj))));
       }
       children.push(h(antd.Modal,{key:"details-modal",open:detailsOpen,onCancel:function(){setDetailsOpen(false);},footer:null,title:"优化请求详情",width:620,zIndex:10001,maskClosable:false},
         h("div",{className:"po-help",style:{maxHeight:"60vh",overflowY:"auto"}},rdContent)
@@ -926,8 +969,14 @@
       var _totalBudget=(_cf.ctx_trunc_head?(_cf.ctx_trunc_head_b||0):0)+(_cf.ctx_trunc_middle?(_cf.ctx_trunc_middle_b||0):0)+(_cf.ctx_trunc_tail?(_cf.ctx_trunc_tail_b||0):0);
       var _estTokens=Math.floor(_totalBudget/2.5);
       var _rounds=settings.context_rounds||5;
-      children.push(h(antd.Modal,{key:"ctx-settings-modal",open:ctxSettingsOpen,onCancel:function(){setCtxSettingsOpen(false);},footer:null,title:"上下文截取设置",width:580,zIndex:10001,maskClosable:false},
+      children.push(h(antd.Modal,{key:"ctx-settings-modal",open:ctxSettingsOpen,onCancel:function(){setCtxSettingsOpen(false);},footer:null,title:"插件设置",width:580,zIndex:10001,maskClosable:false},
         h("div",{className:"po-help"},
+          // v1.4.0: Tab 切换
+          h("div",{style:{display:"flex",gap:6,marginBottom:12}},
+            h("button",{className:"po-var-tab"+(ctxSettingsTab==="trunc"?" po-var-tab-active":""),onClick:function(){setCtxSettingsTab("trunc");}},"上下文截取"),
+            h("button",{className:"po-var-tab"+(ctxSettingsTab==="project"?" po-var-tab-active":""),onClick:function(){setCtxSettingsTab("project");if(!projectInfo&&!projectScanLoading)_loadProjectInfo(false);}},"项目感知")
+          ),
+          ctxSettingsTab==="trunc"?h("div",{key:"tab-trunc"},[
           // 快速预设
           h("div",{style:{marginBottom:12}},
             h("div",{className:"po-help-h",style:{marginBottom:6}},"快速预设"),
@@ -1009,12 +1058,64 @@
           h("div",{style:{fontSize:10,color:"#8a94a2",marginBottom:12}},"原始 3000 字 → 截取后 "+_prevResult.length+" 字（保留 "+Math.floor(_prevResult.length/30)+"%）"),
           // 按钮
           h("div",{style:{display:"flex",justifyContent:"space-between"}},
-            h("button",{className:"po-action",onClick:function(){_setCF({ctx_trunc_head:true,ctx_trunc_middle:false,ctx_trunc_tail:true,ctx_trunc_head_b:500,ctx_trunc_middle_b:1000,ctx_trunc_tail_b:500,ctx_trunc_unit:"char",ctx_trunc_marker:true});}},"恢复默认"),
+            h("button",{className:"po-action",onClick:function(){_setCF({ctx_trunc_head:true,ctx_trunc_middle:false,ctx_trunc_tail:true,ctx_trunc_head_b:500,ctx_trunc_middle_b:1000,ctx_trunc_tail_b:500,ctx_trunc_unit:"char",ctx_trunc_marker:true,include_project:_cf.include_project,project_depth:_cf.project_depth});}},"恢复默认"),
             h("button",{className:"po-action po-primary",onClick:function(){
               var ns=Object.assign({},settings,_cf);
               saveSettings(ns);
               setCtxSettingsOpen(false);
             }},"保存")
+          )
+          ]):
+          // v1.4.0: 项目感知 Tab
+          h("div",{key:"tab-project"},
+            h("div",{style:{marginBottom:12}},
+              h("label",{style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}},
+                h("input",{type:"checkbox",checked:_cf.include_project!==false,onChange:function(e){_ctxUF("include_project",e.target.checked);}}),
+                h("span",{style:{fontSize:12}},"包含项目上下文（自动注入 {{projectContext}}）")
+              ),
+              h("div",{style:{fontSize:10,color:"#8a94a2",marginTop:4}},"开启后优化时会自动注入当前项目的语言、框架、目录结构等信息")
+            ),
+            h("div",{style:{marginBottom:12}},
+              h("div",{className:"po-help-h",style:{marginBottom:6}},"扫描深度"),
+              h("div",{style:{display:"flex",gap:16}},
+                h("label",{style:{display:"flex",alignItems:"center",gap:4,cursor:"pointer"}},
+                  h("input",{type:"radio",name:"pj-depth",checked:_cf.project_depth===1,onChange:function(){_ctxUF("project_depth",1);}}),
+                  h("span",{style:{fontSize:12}},"1 层（仅顶层目录）")
+                ),
+                h("label",{style:{display:"flex",alignItems:"center",gap:4,cursor:"pointer"}},
+                  h("input",{type:"radio",name:"pj-depth",checked:_cf.project_depth!==1,onChange:function(){_ctxUF("project_depth",2);}}),
+                  h("span",{style:{fontSize:12}},"2 层（含子模块）")
+                )
+              )
+            ),
+            h("div",{style:{marginBottom:12}},
+              h("div",{style:{display:"flex",alignItems:"center",marginBottom:6}},
+                h("span",{className:"po-help-h",style:{margin:0,flex:1}},"当前项目"),
+                h("button",{className:"po-action",style:{fontSize:11,padding:"3px 8px"},disabled:projectScanLoading,onClick:function(){_loadProjectInfo(true);}},"立即重新扫描")
+              ),
+              projectScanLoading?h("div",{className:"po-field-hint",style:{padding:"8px"}},"扫描中..."):(projectInfo?h("div",{className:"po-req-detail"},
+                h("div",{style:{marginBottom:4,fontSize:12}},h("span",{style:{color:"#8a94a2"}},"项目："),h("span",{style:{fontWeight:600}},projectInfo.name||"—"),projectInfo.language?h("span",{style:{marginLeft:8,color:"#2563eb"}},projectInfo.language):null),
+                projectInfo.path?h("div",{style:{marginBottom:4,fontSize:11}},h("span",{style:{color:"#8a94a2"}},"路径："),h("span",null,(projectInfo.path||"").length>70?(projectInfo.path.substring(0,70)+"…"):(projectInfo.path||"—"))):null,
+                projectInfo.frameworks&&projectInfo.frameworks.length>0?h("div",{style:{marginBottom:4,fontSize:11}},h("span",{style:{color:"#8a94a2"}},"框架："),h("span",null,projectInfo.frameworks.join(", "))):null,
+                projectInfo.build_tool?h("div",{style:{marginBottom:4,fontSize:11}},h("span",{style:{color:"#8a94a2"}},"构建："),h("span",null,projectInfo.build_tool)):null,
+                projectInfo.modules&&projectInfo.modules.length>0?h("div",{style:{marginBottom:4,fontSize:11}},h("span",{style:{color:"#8a94a2"}},"模块："),h("span",null,projectInfo.modules.join(", "))):null,
+                projectInfo.top_level?h("div",{style:{fontSize:11}},h("span",{style:{color:"#8a94a2"}},"结构："),h("span",null,projectInfo.top_level.join(" "))):null
+              ):h("div",{className:"po-field-hint",style:{padding:"8px"}},"未能获取项目信息"))
+            ),
+            h("div",{style:{marginBottom:12}},
+              h("div",{className:"po-help-h",style:{marginBottom:6}},"模板用法"),
+              h("div",{className:"po-help-code"},"{{projectContext}}                        → 整个项目信息 JSON\n{{projectContext.name}}                → 项目名\n{{projectContext.language}}            → 语言\n{{#projectContext}}...{{/projectContext}}  → 有条件时才注入"),
+              h("div",{style:{fontSize:10,color:"#8a94a2",marginTop:4}},"未知 {{...}} 原样保留，不影响模板里已有的占位符示例")
+            ),
+            // 按钮
+            h("div",{style:{display:"flex",justifyContent:"space-between"}},
+              h("button",{className:"po-action",onClick:function(){_setCF({ctx_trunc_head:true,ctx_trunc_middle:false,ctx_trunc_tail:true,ctx_trunc_head_b:500,ctx_trunc_middle_b:1000,ctx_trunc_tail_b:500,ctx_trunc_unit:"char",ctx_trunc_marker:true,include_project:true,project_depth:2});}},"恢复默认"),
+              h("button",{className:"po-action po-primary",onClick:function(){
+                var ns=Object.assign({},settings,_cf);
+                saveSettings(ns);
+                setCtxSettingsOpen(false);
+              }},"保存")
+            )
           )
         )
       ));

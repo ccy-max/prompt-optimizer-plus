@@ -1,6 +1,6 @@
 # ✨ 提示词增强插件
 
-> 提示词优化插件（v1.3.5）｜插件 ID：`prompt-optimizer-plus`
+> 提示词优化插件（v1.4.0）｜插件 ID：`prompt-optimizer-plus`
 
 在 QwenPaw 聊天输入框旁提供「✨ 优化」面板：自定义提示词模板 → 一键调用当前会话模型优化 → 将结果填入输入框或复制。支持内置变量注入、上下文感知、工具感知与迭代优化，全程无需额外 API Key（复用当前会话模型）。
 
@@ -35,6 +35,7 @@
 | **自定义模板** | 每个模板由 `system_prompt`（优化专家角色）+ `user_prompt`（待优化内容）组成，支持内置变量与条件块语法 |
 | **一键优化** | 选择模板 → 点击「优化」→ 调用当前会话模型（也可在面板内指定供应商/模型） |
 | **上下文感知** | 勾选「包含对话上下文」后，自动注入当前会话最近 N 轮对话（1~20 轮可调）作为优化依据 |
+| **项目感知** | 默认开启：自动识别当前项目（语言/框架/构建工具/目录结构/模块），优化时注入 `{{projectContext}}` |
 | **工具感知** | 自动注入当前 agent 的可用工具列表（名称/描述/启用状态）到模板 `{{toolsContext}}` |
 | **迭代优化** | 点击「迭代优化」用上一次优化结果作为输入继续优化，可连续多轮，面板显示迭代次数 |
 | **结果应用** | 优化结果可「填入输入框」（写入发送框）或「复制」到剪贴板，带成功提示 |
@@ -80,8 +81,11 @@
 | `{{lastOptimizedPrompt}}` | 上一次优化的结果 |
 | `{{conversationContext}}` | 当前会话上下文（JSON 消息数组，勾选「包含上下文」才有值） |
 | `{{toolsContext}}` | 当前 agent 可用工具列表（JSON） |
+| `{{projectContext}}` | 当前项目信息（JSON）：项目名/语言/框架/构建工具/模块/目录结构 |
 
 > 向后兼容：旧模板中的 `{input}` 单花括号占位符仍会被替换为用户输入。
+>
+> 点号路径：模板可用 `{{projectContext.name}}`、`{{projectContext.language}}` 直接引用项目信息字段（v1.4.0）。
 
 ### 模板语法
 
@@ -219,6 +223,39 @@ qwenpaw plugin uninstall prompt-optimizer-plus
 
 ---
 
+## 项目感知
+
+点击面板标题栏「⚙️」→「项目感知」Tab 配置。默认开启，自动识别当前项目并在优化时注入 `{{projectContext}}`。
+
+### 识别内容
+
+| 字段 | 说明 | 示例（RuoYi-Vue-Plus） |
+|------|------|------------------------|
+| 语言/构建工具 | 按关键文件识别 | Java / Maven |
+| 框架 | 解析 pom.xml / package.json 依赖 | Spring Boot, MyBatis-Plus, Sa-Token |
+| 关键配置 | Java 版本、包名、Spring Boot 版本 | java_version=17, package=com.ruoyi |
+| 模块 | Maven modules / monorepo workspaces | ruoyi-admin, ruoyi-system |
+| 目录结构 | 顶层目录/文件（depth 1/2 可调） | backend/, frontend/, sql/ |
+
+### 缓存策略
+
+- 项目信息存于 `WORKING_DIR/plugin_data/prompt-optimizer-plus/project_cache.json`
+- **签名缓存**：关键配置文件（pom.xml/package.json 等）的 mtime+size + 顶层目录名哈希，无变更时直接复用缓存（0 磁盘扫描）
+- 配置变更后自动重扫；「立即重新扫描」按钮强制重扫
+
+### 模板用法
+
+```
+{{projectContext}}                        → 整个项目信息 JSON
+{{projectContext.name}}                   → 项目名
+{{projectContext.language}}               → 语言
+{{#projectContext}}...{{/projectContext}}  → 有条件时才注入
+```
+
+> 聚合工作区：若项目根是聚合目录（如 `coding_projects/`），自动扫描一层子目录找语言标记（如 `RuoYi-Vue-Plus/pom.xml` → Java）。
+
+---
+
 ## 优化请求详情
 
 优化完成后，点击结果标题旁的「ⓘ」按钮打开弹窗，展示本次优化发送给模型的完整请求信息：
@@ -259,8 +296,9 @@ qwenpaw plugin uninstall prompt-optimizer-plus
 ```
 WORKING_DIR/plugin_data/prompt-optimizer-plus/
 ├── templates.json   # 模板（含内置模板、排序、删除标记）
-├── settings.json    # 面板设置（默认模型、上下文开关/轮数、截取配置）
-└── variables.json   # 自定义变量
+├── settings.json    # 面板设置（默认模型、上下文开关/轮数、截取配置、项目感知开关）
+├── variables.json   # 自定义变量
+└── project_cache.json  # 项目感知扫描缓存（签名+结果）
 ```
 
 - `qwenpaw plugin install --force` 重装或卸载后重装，**数据保留**
@@ -288,6 +326,17 @@ WORKING_DIR/plugin_data/prompt-optimizer-plus/
 ---
 
 ## 版本更新摘要
+
+### v1.4.0 (2026-08-20)
+
+- **项目感知功能（新）**：自动识别当前项目（语言/框架/构建工具/关键配置/目录结构/模块），优化时注入 `{{projectContext}}`
+- **第 8 个内置变量** `{{projectContext}}`：支持 `{{projectContext.name}}` 点号路径访问，加入保留名防自定义变量覆盖
+- **渲染器增强**：支持点号路径访问 dict 字段（未知路径仍原样保留，不破坏占位符语义）
+- **签名缓存**：关键配置 mtime+size 哈希，无变更 0 扫描直接命中；`project_cache.json` 持久化
+- **新接口**：`GET /project-info`（识别结果预览）、`POST /project/rescan`（强制重扫）
+- **聚合目录识别**：项目根无语言标记时扫一层子目录（多项目工作区场景）
+- **前端设置 Tab 化**：⚙️ 弹窗改为「插件设置」（上下文截取｜项目感知），项目感知 Tab 含开关/深度/项目卡片/重扫/用法说明
+- **请求详情 ⓘ**：新增「项目感知」区块展示注入结果
 
 ### v1.3.5 (2026-08-15)
 

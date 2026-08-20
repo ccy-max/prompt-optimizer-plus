@@ -20,6 +20,7 @@ _LOCK = threading.Lock()
 BUILTIN_RESERVED_NAMES = frozenset({
     "originalPrompt", "userQuestion", "currentPrompt", "iterateInput",
     "lastOptimizedPrompt", "conversationContext", "toolsContext",
+    "projectContext",
 })
 
 

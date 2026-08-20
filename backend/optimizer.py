@@ -48,6 +48,27 @@ def _truthy(value: Any) -> bool:
     return bool(value)
 
 
+_NOT_FOUND = object()
+
+
+def _lookup(name: str, variables: dict) -> Any:
+    """查找变量值；支持点号路径访问（如 projectContext.name）。
+
+    含点变量逐级取 dict 字段；找不到返回 _NOT_FOUND（与「未知变量原样保留」一致）。
+    """
+    if name in variables:
+        return variables[name]
+    if "." in name:
+        val: Any = variables
+        for part in name.split("."):
+            if isinstance(val, dict) and part in val:
+                val = val[part]
+            else:
+                return _NOT_FOUND
+        return val
+    return _NOT_FOUND
+
+
 def _to_str(value: Any) -> str:
     """把变量值转成字符串；dict/list 序列化为 JSON（紧凑）。"""
     if value is None:
@@ -67,6 +88,7 @@ def render_template(template: str, variables: dict) -> str:
       用于保护模板里作为示例的占位符如 ``{{location_theme}}``）
     - ``{{#var}}...{{/var}}``  条件块：var 有值（非空）才展开
     - ``{{^var}}...{{/var}}``  反转块：var 无值（空）才展开
+    - 点号路径：``{{projectContext.name}}`` 逐级取 dict 字段（v1.4.0）
 
     条件块会递归渲染内部内容，支持一层嵌套。
     """
@@ -74,13 +96,15 @@ def render_template(template: str, variables: dict) -> str:
     def render(text: str) -> str:
         def section_repl(m: re.Match) -> str:
             name, body = m.group(1), m.group(2)
-            if name in variables and _truthy(variables[name]):
+            val = _lookup(name, variables)
+            if val is not _NOT_FOUND and _truthy(val):
                 return render(body)
             return ""
 
         def inverted_repl(m: re.Match) -> str:
             name, body = m.group(1), m.group(2)
-            if name not in variables or not _truthy(variables[name]):
+            val = _lookup(name, variables)
+            if val is _NOT_FOUND or not _truthy(val):
                 return render(body)
             return ""
 
@@ -89,8 +113,9 @@ def render_template(template: str, variables: dict) -> str:
 
         def var_repl(m: re.Match) -> str:
             name = m.group(1)
-            if name in variables:
-                return _to_str(variables[name])
+            val = _lookup(name, variables)
+            if val is not _NOT_FOUND:
+                return _to_str(val)
             return m.group(0)  # 未知变量原样保留
 
         return _VAR_RE.sub(var_repl, text)

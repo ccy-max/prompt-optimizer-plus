@@ -12,7 +12,8 @@ from pydantic import BaseModel
 from .models import PromptTemplate, OptimizeResult
 from .store import TemplateStore, SettingsStore
 from .variable_store import VariableStore
-from .optimizer import PromptOptimizer
+from .optimizer import PromptOptimizer, render_template
+from .project_store import ProjectStore
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ _store: Optional[TemplateStore] = None
 _settings_store: Optional[SettingsStore] = None
 _variable_store: Optional[VariableStore] = None
 _optimizer: Optional[PromptOptimizer] = None
+_project_store: Optional[ProjectStore] = None
 
 # v1.3.0: _fetch_tools 进程级缓存，避免每次优化都调用 load_agent_config
 _tools_cache: dict[str, tuple[float, list]] = {}
@@ -46,6 +48,17 @@ def init_variable_store(variable_store: VariableStore) -> None:
 def init_optimizer(optimizer: PromptOptimizer) -> None:
     global _optimizer
     _optimizer = optimizer
+
+
+def init_project_store(project_store: ProjectStore) -> None:
+    global _project_store
+    _project_store = project_store
+
+
+def _get_project_store() -> ProjectStore:
+    if _project_store is None:
+        raise HTTPException(503, "prompt-optimizer-plus project store not initialised")
+    return _project_store
 
 
 def _get_store() -> TemplateStore:
@@ -472,6 +485,18 @@ async def optimize_prompt(body: OptimizeBody, request: Request):
 
     tools_data = await _fetch_tools(request)
 
+    # v1.4.0: 项目感知 — 从设置开关与深度拉取当前项目信息（带缓存）
+    project_data = None
+    _sett = _get_settings_store().get()
+    include_project = bool(_sett.get("include_project", True))
+    project_depth = int(_sett.get("project_depth", 2) or 2)
+    if include_project:
+        try:
+            project_data = await _fetch_project_info(request, project_depth)
+        except Exception as exc:
+            logger.warning("[prompt-optimizer-plus] project context failed: %s", exc)
+            project_data = None
+
     variables = {
         # originalPrompt / userQuestion 指向「最初输入」；迭代时由前端保持 original_prompt 不变
         "originalPrompt": body.original_prompt or body.user_input,
@@ -481,6 +506,7 @@ async def optimize_prompt(body: OptimizeBody, request: Request):
         "conversationContext": context_data,
         "toolsContext": tools_data,
         "lastOptimizedPrompt": body.last_optimized_prompt,
+        "projectContext": project_data,
     }
 
     # 合并用户自定义变量（内置变量不被覆盖）
@@ -524,6 +550,7 @@ async def optimize_prompt(body: OptimizeBody, request: Request):
             "rendered_system_prompt": _debug_system,
             "rendered_user_prompt": _debug_user,
             "custom_variables": _custom_vars,
+            "project_info": project_data,  # v1.4.0: 项目感知注入结果
         },
     }
 
@@ -567,6 +594,8 @@ class SettingsBody(BaseModel):
     ctx_trunc_tail_b: Optional[int] = None
     ctx_trunc_unit: Optional[str] = None
     ctx_trunc_marker: Optional[bool] = None
+    include_project: Optional[bool] = None
+    project_depth: Optional[int] = None
 
 
 @router.get("/settings")
@@ -779,3 +808,44 @@ async def _fetch_tools(request: Request):
         return items or None
     except Exception as exc:
         return None
+# --- Project awareness (v1.4.0) ---
+
+async def _fetch_project_info(request: Request, depth: int = 2, force: bool = False):
+    """解析当前项目目录并返回项目信息（带签名缓存）。
+
+    复用 QwenPaw 官方 get_project_dir_for_request：session override > agent config > workspace fallback。
+    """
+    from qwenpaw.app.agent_context import get_agent_for_request, get_project_dir_for_request
+
+    workspace = await get_agent_for_request(request)
+    project_dir = await get_project_dir_for_request(request, workspace)
+    project_store = _get_project_store()
+    info = project_store.get_project_info(project_dir, depth=depth, force=force)
+    # 附加来源便于前端展示
+    info = dict(info)
+    info["resolved_dir"] = str(project_dir)
+    return info
+
+
+@router.get("/project-info")
+async def get_project_info(request: Request, refresh: int = Query(0)):
+    """返回当前项目识别结果（前端设置弹窗预览 / 调试用）。refresh=1 强制重扫。"""
+    _sett = _get_settings_store().get()
+    depth = int(_sett.get("project_depth", 2) or 2)
+    try:
+        info = await _fetch_project_info(request, depth=depth, force=bool(refresh))
+        return {"ok": True, "project": info}
+    except Exception as exc:
+        return {"ok": False, "project": None, "error": str(exc)}
+
+
+@router.post("/project/rescan")
+async def rescan_project(request: Request):
+    """强制重新扫描当前项目并返回结果。"""
+    _sett = _get_settings_store().get()
+    depth = int(_sett.get("project_depth", 2) or 2)
+    try:
+        info = await _fetch_project_info(request, depth=depth, force=True)
+        return {"ok": True, "project": info}
+    except Exception as exc:
+        return {"ok": False, "project": None, "error": str(exc)}

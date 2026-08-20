@@ -18,12 +18,14 @@ from .backend.store import TemplateStore, SettingsStore
 from .backend.variable_store import VariableStore
 from .backend.optimizer import PromptOptimizer
 from .backend.middleware import PromptInjectMiddleware
+from .backend.project_store import ProjectStore
 from .backend.routes import (
     router,
     init_store as init_routes_store,
     init_settings_store as init_routes_settings,
     init_variable_store as init_routes_variable,
     init_optimizer as init_routes_optimizer,
+    init_project_store as init_routes_project,
 )
 from .backend.commands import (
     handle_prompt,
@@ -49,6 +51,7 @@ _LEGACY_SETTINGS_PATH = Path(__file__).resolve().parent / "settings.json"
 _STORE_PATH = _DATA_DIR / "templates.json"
 _SETTINGS_PATH = _DATA_DIR / "settings.json"
 _VARIABLES_PATH = _DATA_DIR / "variables.json"
+_PROJECT_CACHE_PATH = _DATA_DIR / "project_cache.json"  # v1.4.0: 项目感知缓存
 
 
 def _migrate_legacy_data() -> None:
@@ -89,11 +92,13 @@ class Plugin:
         store = TemplateStore(_STORE_PATH)
         settings_store = SettingsStore(_SETTINGS_PATH)
         variable_store = VariableStore(_VARIABLES_PATH)
+        project_store = ProjectStore(_PROJECT_CACHE_PATH)
         optimizer = PromptOptimizer()
 
         init_routes_store(store)
         init_routes_settings(settings_store)
         init_routes_variable(variable_store)
+        init_routes_project(project_store)
         init_routes_optimizer(optimizer)
         init_cmds_store(store)
         init_cmds_optimizer(optimizer)
@@ -117,7 +122,7 @@ class Plugin:
             help_text="提示词优化: /prompt [list|show|optimize|apply|delete] [id]",
         )
 
-        logger.info("prompt-optimizer-plus v1.3.5 registered")
+        logger.info("prompt-optimizer-plus v1.4.0 registered")
 
 
 plugin = Plugin()
