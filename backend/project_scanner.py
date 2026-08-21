@@ -106,6 +106,9 @@ _MAX_FILE_BYTES = 64 * 1024  # 单文件读取上限 64KB
 _MAX_SCAN_ITEMS = 100        # 结构扫描条目上限
 _SCAN_TIMEOUT_MS = 2000      # 整个扫描超时 2s
 
+# Scanner 逻辑版本号：纳入签名 payload，scanner 逻辑升级后旧缓存自动失效
+_SCANNER_VERSION = 2  # v1.4.1: 聚合目录多项目识别（前端框架）
+
 
 def _is_ignored(name: str) -> bool:
     return name in _IGNORE_DIRS or name.startswith(".")
@@ -160,7 +163,7 @@ def compute_signature(project_dir: Path, depth: int) -> str:
     except OSError:
         pass
     top.sort()
-    payload = json.dumps({"files": parts, "top": top, "depth": depth}, ensure_ascii=False, sort_keys=True)
+    payload = json.dumps({"files": parts, "top": top, "depth": depth, "sv": _SCANNER_VERSION}, ensure_ascii=False, sort_keys=True)
     return _sha256_hex(payload)
 
 
@@ -314,11 +317,12 @@ def scan_project(project_dir: Path, depth: int = 2) -> dict:
         return None
 
     root_hit = _match_markers(set(files))
-    matched_subdir: Optional[str] = None  # 若根目录未命中，记录命中的子目录（聚合目录场景）
+    matched_subdirs: list[str] = []  # 聚合目录场景下命中的子目录列表
     if root_hit:
         info["language"], info["build_tool"] = root_hit
     else:
         # 聚合工作区：根目录没有语言标记时，扫一层子目录找（多项目并存）
+        # 收集所有命中（如 Java 后端 + Vue 前端并存），不只取第一个
         for dname in sorted(dirs)[:20]:
             if _is_ignored(dname):
                 continue
@@ -328,26 +332,39 @@ def scan_project(project_dir: Path, depth: int = 2) -> dict:
                 continue
             sub_hit = _match_markers(sub_names)
             if sub_hit:
-                info["language"], info["build_tool"] = sub_hit
-                matched_subdir = dname
-                info["configs"]["project_dir_hint"] = dname
-                break
+                if not info["language"]:
+                    # 第一个命中作为主语言
+                    info["language"], info["build_tool"] = sub_hit
+                    info["configs"]["project_dir_hint"] = dname
+                matched_subdirs.append(dname)
+        # 多语言场景记录
+        if len(matched_subdirs) > 1:
+            info["configs"]["sub_projects"] = matched_subdirs
 
-    # 2. 包管理器（锁文件优先）
-    if "package-lock.json" in files or "package.json" in files:
+    # 2. 包管理器（锁文件优先）— 根目录 + 所有命中子目录
+    _scan_dirs_for_files = [files]  # 根目录文件集
+    for dname in matched_subdirs:
+        try:
+            _scan_dirs_for_files.append({e.name for e in os.scandir(project_dir / dname)})
+        except OSError:
+            continue
+    _all_files_flat = set()
+    for fs in _scan_dirs_for_files:
+        _all_files_flat.update(fs)
+    if "package-lock.json" in _all_files_flat or "package.json" in _all_files_flat:
         info["package_managers"].append("npm")
-    if "pnpm-lock.yaml" in files:
+    if "pnpm-lock.yaml" in _all_files_flat:
         info["package_managers"].append("pnpm")
-    if "yarn.lock" in files:
+    if "yarn.lock" in _all_files_flat:
         info["package_managers"].append("yarn")
-    if "pom.xml" in files:
+    if "pom.xml" in _all_files_flat:
         info["package_managers"].append("Maven Central")
-    if "pyproject.toml" in files or "requirements.txt" in files:
+    if "pyproject.toml" in _all_files_flat or "requirements.txt" in _all_files_flat:
         info["package_managers"].append("PyPI")
-    if "go.mod" in files:
+    if "go.mod" in _all_files_flat:
         info["package_managers"].append("Go Proxy")
 
-    # 3. 关键文件标记
+    # 3. 关键文件标记（根目录）
     for f in sorted(files):
         if f in {"README.md", "LICENSE", ".gitignore"}:
             info["key_files"][f] = "exists"
@@ -356,46 +373,55 @@ def scan_project(project_dir: Path, depth: int = 2) -> dict:
                  "Dockerfile", "vite.config.ts", "tsconfig.json", "pnpm-lock.yaml", "yarn.lock"):
         if name in files:
             info["key_files"][name] = "exists"
+    # 聚合目录子项目关键文件也标记（带子目录前缀）
+    for dname in matched_subdirs:
+        try:
+            sub_files = {e.name for e in os.scandir(project_dir / dname)}
+        except OSError:
+            continue
+        for name in ("pom.xml", "package.json", "pyproject.toml", "requirements.txt",
+                     "go.mod", "Cargo.toml", "docker-compose.yml", "vite.config.ts"):
+            if name in sub_files:
+                info["key_files"][dname + "/" + name] = "exists"
 
-    # 4. 解析关键配置（根目录优先；聚合目录时用匹配到的子目录补齐）
-    _parse_dir = project_dir
-    if matched_subdir:
-        _sub_path = project_dir / matched_subdir
-        if _sub_path.is_dir():
-            _sub_files = {e.name for e in os.scandir(_sub_path)}
-            if "pom.xml" in _sub_files or "package.json" in _sub_files:
-                _parse_dir = _sub_path
-
-    if "package.json" in {e.name for e in os.scandir(_parse_dir)}:
-        pkg = _parse_json(_read_text(_parse_dir / "package.json") or "{}")
-        if pkg.get("name") and "name" not in info.get("configs", {}):
-            info["configs"]["name"] = str(pkg["name"])[:60]
-        deps = {}
-        if isinstance(pkg.get("dependencies"), dict):
-            deps.update(pkg["dependencies"])
-        if isinstance(pkg.get("devDependencies"), dict):
-            deps.update(pkg["devDependencies"])
-        fw = _detect_js_frameworks(deps)
-        if fw:
-            info["frameworks"].extend(fw)
-        if "packageManager" in pkg:
-            info["configs"]["package_manager"] = str(pkg["packageManager"])[:40]
-
-    if "pom.xml" in {e.name for e in os.scandir(_parse_dir)}:
-        pom_text = _read_text(_parse_dir / "pom.xml") or ""
-        if pom_text:
-            if matched_subdir:
-                # 聚合目录：模块归属标记到匹配子目录下
-                m = re.search(r"<artifactId>\s*([^<]+?)\s*</artifactId>", pom_text)
-                if m:
-                    info["configs"]["name"] = m.group(1).strip()
-            info["configs"].update(_extract_pom(pom_text))
-            fw = _detect_pom_frameworks(pom_text)
+    # 4. 解析关键配置 — 根目录 + 所有命中子目录（合并框架列表）
+    _parse_dirs = [project_dir] + [project_dir / d for d in matched_subdirs]
+    for _parse_dir in _parse_dirs:
+        try:
+            _dir_files = {e.name for e in os.scandir(_parse_dir)}
+        except OSError:
+            continue
+        # package.json → JS 框架
+        if "package.json" in _dir_files:
+            pkg = _parse_json(_read_text(_parse_dir / "package.json") or "{}")
+            if pkg.get("name") and "name" not in info.get("configs", {}):
+                info["configs"]["name"] = str(pkg["name"])[:60]
+            deps = {}
+            if isinstance(pkg.get("dependencies"), dict):
+                deps.update(pkg["dependencies"])
+            if isinstance(pkg.get("devDependencies"), dict):
+                deps.update(pkg["devDependencies"])
+            fw = _detect_js_frameworks(deps)
             if fw:
                 info["frameworks"].extend(fw)
-            modules = info["configs"].get("modules")
-            if isinstance(modules, list):
-                info["modules"] = modules
+            if "packageManager" in pkg:
+                info["configs"]["package_manager"] = str(pkg["packageManager"])[:40]
+        # pom.xml → Java 框架
+        if "pom.xml" in _dir_files:
+            pom_text = _read_text(_parse_dir / "pom.xml") or ""
+            if pom_text:
+                # 聚合目录：用 artifactId 作为项目名
+                if matched_subdirs:
+                    m = re.search(r"<artifactId>\s*([^<]+?)\s*</artifactId>", pom_text)
+                    if m and "name" not in info.get("configs", {}):
+                        info["configs"]["name"] = m.group(1).strip()
+                info["configs"].update(_extract_pom(pom_text))
+                fw = _detect_pom_frameworks(pom_text)
+                if fw:
+                    info["frameworks"].extend(fw)
+                modules = info["configs"].get("modules")
+                if isinstance(modules, list):
+                    info["modules"] = modules
 
     # 5. 目录结构
     structure = _scan_structure(project_dir, depth)
