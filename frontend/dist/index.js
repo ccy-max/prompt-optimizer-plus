@@ -935,6 +935,7 @@
         if(pj.frameworks&&pj.frameworks.length) pjLines.push("框架: " + pj.frameworks.join(", "));
         if(pj.build_tool) pjLines.push("构建: " + pj.build_tool);
         if(pj.modules&&pj.modules.length) pjLines.push("模块: " + pj.modules.join(", "));
+        if(pj.configs&&pj.configs.sub_projects) pjLines.push("子项目: " + pj.configs.sub_projects.map(function(sp){return sp.dir+" ("+sp.language+")";}).join(", "));
         rdContent.push(h("div",{key:"rd-pj"},h("div",{className:"po-help-h"},"项目感知"),h("div",{className:"po-help-code"},pjLines.length?pjLines.join("\n"):JSON.stringify(pj))));
       }
       children.push(h(antd.Modal,{key:"details-modal",open:detailsOpen,onCancel:function(){setDetailsOpen(false);},footer:null,title:"优化请求详情",width:620,zIndex:10001,maskClosable:false},
@@ -1083,6 +1084,7 @@
                 h("div",{style:{marginBottom:4,fontSize:12}},h("span",{style:{color:"#8a94a2"}},"项目："),h("span",{style:{fontWeight:600}},projectInfo.name||"—"),projectInfo.language?h("span",{style:{marginLeft:8,color:"#2563eb"}},projectInfo.language):null),
                 projectInfo.path?h("div",{style:{marginBottom:4,fontSize:11}},h("span",{style:{color:"#8a94a2"}},"路径："),h("span",null,(projectInfo.path||"").length>70?(projectInfo.path.substring(0,70)+"…"):(projectInfo.path||"—"))):null,
                 projectInfo.frameworks&&projectInfo.frameworks.length>0?h("div",{style:{marginBottom:4,fontSize:11}},h("span",{style:{color:"#8a94a2"}},"框架："),h("span",null,projectInfo.frameworks.join(", "))):null,
+                projectInfo.configs&&projectInfo.configs.sub_projects?h("div",{style:{marginBottom:4,fontSize:11}},h("span",{style:{color:"#8a94a2"}},"子项目："),h("span",null,projectInfo.configs.sub_projects.map(function(sp){return sp.dir+" ("+sp.language+(sp.build_tool?"/"+sp.build_tool:"")+")";}).join(", "))):null,
                 projectInfo.build_tool?h("div",{style:{marginBottom:4,fontSize:11}},h("span",{style:{color:"#8a94a2"}},"构建："),h("span",null,projectInfo.build_tool)):null,
                 projectInfo.modules&&projectInfo.modules.length>0?h("div",{style:{marginBottom:4,fontSize:11}},h("span",{style:{color:"#8a94a2"}},"模块："),h("span",null,projectInfo.modules.join(", "))):null,
                 projectInfo.top_level?h("div",{style:{fontSize:11}},h("span",{style:{color:"#8a94a2"}},"结构："),h("span",null,projectInfo.top_level.join(" "))):null

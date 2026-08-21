@@ -107,7 +107,7 @@ _MAX_SCAN_ITEMS = 100        # 结构扫描条目上限
 _SCAN_TIMEOUT_MS = 2000      # 整个扫描超时 2s
 
 # Scanner 逻辑版本号：纳入签名 payload，scanner 逻辑升级后旧缓存自动失效
-_SCANNER_VERSION = 2  # v1.4.1: 聚合目录多项目识别（前端框架）
+_SCANNER_VERSION = 3  # v1.4.2: sub_projects 带语言/构建工具
 
 
 def _is_ignored(name: str) -> bool:
@@ -317,7 +317,7 @@ def scan_project(project_dir: Path, depth: int = 2) -> dict:
         return None
 
     root_hit = _match_markers(set(files))
-    matched_subdirs: list[str] = []  # 聚合目录场景下命中的子目录列表
+    matched_subdirs: list[dict] = []  # [{"dir": d, "language": l, "build_tool": t}] 聚合目录命中的子项目
     if root_hit:
         info["language"], info["build_tool"] = root_hit
     else:
@@ -336,16 +336,16 @@ def scan_project(project_dir: Path, depth: int = 2) -> dict:
                     # 第一个命中作为主语言
                     info["language"], info["build_tool"] = sub_hit
                     info["configs"]["project_dir_hint"] = dname
-                matched_subdirs.append(dname)
-        # 多语言场景记录
-        if len(matched_subdirs) > 1:
+                matched_subdirs.append({"dir": dname, "language": sub_hit[0], "build_tool": sub_hit[1]})
+        # 多语言场景记录子项目列表（含各自语言/构建工具）
+        if matched_subdirs:
             info["configs"]["sub_projects"] = matched_subdirs
 
     # 2. 包管理器（锁文件优先）— 根目录 + 所有命中子目录
     _scan_dirs_for_files = [files]  # 根目录文件集
-    for dname in matched_subdirs:
+    for sp in matched_subdirs:
         try:
-            _scan_dirs_for_files.append({e.name for e in os.scandir(project_dir / dname)})
+            _scan_dirs_for_files.append({e.name for e in os.scandir(project_dir / sp["dir"])})
         except OSError:
             continue
     _all_files_flat = set()
@@ -374,7 +374,8 @@ def scan_project(project_dir: Path, depth: int = 2) -> dict:
         if name in files:
             info["key_files"][name] = "exists"
     # 聚合目录子项目关键文件也标记（带子目录前缀）
-    for dname in matched_subdirs:
+    for sp in matched_subdirs:
+        dname = sp["dir"]
         try:
             sub_files = {e.name for e in os.scandir(project_dir / dname)}
         except OSError:
@@ -385,7 +386,7 @@ def scan_project(project_dir: Path, depth: int = 2) -> dict:
                 info["key_files"][dname + "/" + name] = "exists"
 
     # 4. 解析关键配置 — 根目录 + 所有命中子目录（合并框架列表）
-    _parse_dirs = [project_dir] + [project_dir / d for d in matched_subdirs]
+    _parse_dirs = [project_dir] + [project_dir / sp["dir"] for sp in matched_subdirs]
     for _parse_dir in _parse_dirs:
         try:
             _dir_files = {e.name for e in os.scandir(_parse_dir)}
