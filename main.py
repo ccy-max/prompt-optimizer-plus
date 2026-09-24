@@ -122,7 +122,7 @@ class Plugin:
             help_text="提示词优化: /prompt [list|show|optimize|apply|delete] [id]",
         )
 
-        logger.info("prompt-optimizer-plus v1.4.0 registered")
+        logger.info("prompt-optimizer-plus v1.4.1 registered")
 
 
 plugin = Plugin()

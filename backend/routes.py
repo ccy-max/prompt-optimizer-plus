@@ -126,6 +126,7 @@ class OptimizeBody(BaseModel):
     model_id: str = ""            # 可选，覆盖模板的模型设置
     include_context: bool = False
     context_rounds: int = 5
+    settings_priority: Optional[bool] = None  # v1.4.1: true=面板设置优先（默认）；false=以模板内设置为准
     # 迭代/状态相关变量（v2.11，可选；缺省时回退为 user_input）
     original_prompt: str = ""     # 用户最初的原始提示词（迭代时保持不变，供 {{originalPrompt}}）
     last_optimized_prompt: str = ""
@@ -462,6 +463,10 @@ async def optimize_prompt(body: OptimizeBody, request: Request):
     include_context = body.include_context
     context_rounds = body.context_rounds
 
+    # v1.4.1: 设置优先级 — true(默认)=面板设置优先（沿用旧合并逻辑）；
+    # false=以模板内设置为准（模板的模型/上下文开关/轮数直接生效，面板值仅兜底）
+    _prio = body.settings_priority if body.settings_priority is not None else True
+
     if body.template_id:
         template = store.get(body.template_id)
         if template is None:
@@ -469,11 +474,16 @@ async def optimize_prompt(body: OptimizeBody, request: Request):
         system_prompt = template.system_prompt
         user_prompt = template.user_prompt
         template_name = template.name
-        include_context = template.include_context or body.include_context
-        context_rounds = template.context_rounds or body.context_rounds
-        # 模板的 model_id 优先，请求的 model_id 次之
-        if template.model_id and not model_id:
-            model_id = template.model_id
+        if _prio:
+            # 面板优先：面板的模型/上下文开关/轮数直接生效（面板未选模型时回退模板）
+            include_context = body.include_context
+            context_rounds = body.context_rounds or template.context_rounds
+            model_id = body.model_id or template.model_id
+        else:
+            # 模板优先：模板字段直接生效（模板未设置时回退面板值）
+            include_context = template.include_context
+            context_rounds = template.context_rounds or body.context_rounds
+            model_id = template.model_id or body.model_id
 
     if not body.user_input:
         raise HTTPException(400, "user_input is required")
@@ -594,6 +604,7 @@ class SettingsBody(BaseModel):
     ctx_trunc_unit: Optional[str] = None
     ctx_trunc_marker: Optional[bool] = None
     include_project: Optional[bool] = None
+    settings_priority: Optional[bool] = None  # v1.4.1: 面板设置优先开关
 
 
 @router.get("/settings")

@@ -525,7 +525,7 @@
     var rs=React.useState(_cs.result || null), result=rs[0], setResult=rs[1];
     var ls=React.useState(false), loading=ls[0], setLoading=ls[1];
     var es=React.useState(null), editing=es[0], setEditing=es[1];
-    var ss=React.useState({model_id:"",include_context:false,context_rounds:5}), settings=ss[0], setSettings=ss[1];
+    var ss=React.useState({model_id:"",include_context:false,context_rounds:5,settings_priority:true}), settings=ss[0], setSettings=ss[1];
     var sel=React.useState(_cs.selected || null), selected=sel[0], setSelected=sel[1];
     var is=React.useState(_cs.inputText || ""), inputText=is[0], setInputTextState=is[1];
     var oriRef = React.useRef(_cs.oriInput || "");   // v2.11: 最初原始输入（迭代时保持不变，供 {{originalPrompt}}）
@@ -608,7 +608,7 @@
       fetchModels().then(function(m){cachedModels=m;setModels(m);});
       fetchVariables().then(function(v){cachedVariables=v;setVariables(v);});
       fetchSettings().then(function(s){
-        if(s) setSettings({model_id:s.model_id||"",include_context:s.include_context||false,context_rounds:s.context_rounds||5});
+        if(s) setSettings({model_id:s.model_id||"",include_context:s.include_context||false,context_rounds:s.context_rounds||5,settings_priority:s.settings_priority!==false});
       });
     },[]);
 
@@ -636,9 +636,10 @@
       var params={
         user_input: currentInput,
         template_id: tid,
-        model_id: settings.model_id || tpl.model_id || "",
-        include_context: settings.include_context || tpl.include_context,
-        context_rounds: settings.context_rounds || tpl.context_rounds,
+        model_id: settings.model_id || "",
+        include_context: !!settings.include_context,
+        context_rounds: settings.context_rounds || 5,
+        settings_priority: settings.settings_priority!==false,  // v1.4.1
         original_prompt: currentInput,
         last_optimized_prompt: cachedLastOptimized || "",
         current_prompt: currentInput,
@@ -675,9 +676,10 @@
       var params={
         user_input: nextInput,
         template_id: selected,
-        model_id: settings.model_id || tpl.model_id || "",
-        include_context: settings.include_context || tpl.include_context,
-        context_rounds: settings.context_rounds || tpl.context_rounds,
+        model_id: settings.model_id || "",
+        include_context: !!settings.include_context,
+        context_rounds: settings.context_rounds || 5,
+        settings_priority: settings.settings_priority!==false,  // v1.4.1
         original_prompt: oriRef.current || nextInput,
         last_optimized_prompt: result.optimized_text,
         current_prompt: nextInput,
@@ -763,7 +765,7 @@
             cachedTemplates = t;
             setTemplates(t);
             var s = await fetchSettings();
-            if (s) setSettings({model_id:s.model_id||"", include_context:s.include_context||false, context_rounds:s.context_rounds||5});
+            if (s) setSettings({model_id:s.model_id||"", include_context:s.include_context||false, context_rounds:s.context_rounds||5, settings_priority:s.settings_priority!==false});
             var impMsg = "导入成功，共 " + (resp.imported || 0) + " 个模板";
             if (resp.imported_variables) impMsg += "，" + resp.imported_variables + " 个变量";
             alert(impMsg);
@@ -837,7 +839,14 @@
     ));
 
     children.push(h("div",{className:"po-settings",key:"set"},
-      h("div",{className:"po-section-title",style:{marginBottom:8}},"优化设置"),
+      h("div",{style:{display:"flex",alignItems:"center",marginBottom:8}},
+        h("div",{className:"po-section-title",style:{margin:0}},"优化设置"),
+        h("label",{className:"po-checkbox",style:{marginLeft:12,fontSize:11,cursor:"pointer"},title:"开启：本面板的模型/上下文设置优先于模板内设置；关闭：以每个模板内的设置为准"},
+          h("input",{type:"checkbox",checked:settings.settings_priority!==false,onChange:function(e){updateSettings(Object.assign({},settings,{settings_priority:e.target.checked}));}}),
+          "面板设置优先"
+        ),
+        settings.settings_priority===false?h("span",{style:{fontSize:10,color:"#8a94a2",marginLeft:6}},"（以模板内设置为准）"):null
+      ),
       h("div",{className:"po-setting-row"},h("span",{className:"po-setting-label"},"使用模型"),
         h(CascadeModelSelect, {React:React, antd:antd, models:models, value:settings.model_id, onChange:function(v){updateSettings(Object.assign({},settings,{model_id:v}));}})
       ),

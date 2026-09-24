@@ -1,6 +1,6 @@
 # ✨ 提示词增强插件
 
-> 提示词优化插件（v1.4.0）｜插件 ID：`prompt-optimizer-plus`
+> 提示词优化插件（v1.4.1）｜插件 ID：`prompt-optimizer-plus`
 
 在 QwenPaw 聊天输入框旁提供「✨ 优化」面板：自定义提示词模板 → 一键调用当前会话模型优化 → 将结果填入输入框或复制。支持内置变量注入、上下文感知、工具感知与迭代优化，全程无需额外 API Key（复用当前会话模型）。
 
@@ -127,14 +127,14 @@ qwenpaw plugin install /path/to/prompt-optimizer-plus --force
 ### 方式二：ZIP 包安装
 
 ```bash
-qwenpaw plugin install ./prompt-optimizer-plus-v1.3.5.zip --force
+qwenpaw plugin install ./prompt-optimizer-plus-v1.4.1.zip --force
 ```
 
 ZIP 格式要求：`plugin.json` 位于压缩包**根目录**（或唯一顶层子目录内），QwenPaw 会自动识别。
 
 ### 方式三：QwenPaw 前端导入
 
-插件管理 → 导入/上传 ZIP 文件，选择 `prompt-optimizer-plus-v1.3.5.zip` 即可。
+插件管理 → 导入/上传 ZIP 文件，选择 `prompt-optimizer-plus-v1.4.1.zip` 即可。
 
 ### 安装后验证
 
@@ -145,7 +145,7 @@ qwenpaw plugin list
 应看到：
 
 ```
-• 提示词增强插件 (v1.3.5)
+• 提示词增强插件 (v1.4.1)
   ID: prompt-optimizer-plus
 ```
 
@@ -171,7 +171,7 @@ qwenpaw plugin uninstall prompt-optimizer-plus
 2. 面板内：
    - 「当前输入」填写/确认要优化的原始提示词
    - 「优化模板」选择一个模板（可新建/编辑/拖拽排序）
-   - 「优化设置」选择模型、勾选「包含对话上下文」及轮数
+   - 「优化设置」选择模型、勾选「包含对话上下文」及轮数；旁「面板设置优先」开关：开启=面板设置优先，关闭=以各模板内设置为准
 3. 点击模板右侧「⚡」→ 等待模型返回
 4. 结果区可执行：
    - **迭代优化**：基于当前结果继续优化
@@ -326,6 +326,13 @@ WORKING_DIR/plugin_data/prompt-optimizer-plus/
 ---
 
 ## 版本更新摘要
+
+### v1.4.1 (2026-09-24)
+
+- **面板设置优先开关（新）**：「优化设置」标题旁新增开关
+  - **开启（默认）**：面板上的模型/上下文设置优先于模板内设置（沿用旧行为）
+  - **关闭**：以每个模板内的设置为准（模板的上下文开关/轮数/模型直接生效）
+- 合并语义：面板/模板值直接生效，仅当配置项为空时才互相兜底；持久化到 `settings.json`
 
 ### v1.4.0 (2026-08-20)
 

@@ -191,6 +191,8 @@ class SettingsStore:
         "ctx_trunc_marker": True,
         # v1.4.0: 项目感知
         "include_project": True,
+        # v1.4.1: 面板设置优先开关（true=面板覆盖模板设置；false=以各模板内设置为准）
+        "settings_priority": True,
     }
 
     def __init__(self, path: str | Path | None = None):
