@@ -1,10 +1,10 @@
 # ✨ 提示词增强插件
 
-> 提示词优化插件（v1.4.1）｜插件 ID：`prompt-optimizer-plus`
+> 提示词优化插件（v1.4.2）｜插件 ID：`prompt-optimizer-plus`
 
 在 QwenPaw 聊天输入框旁提供「✨ 优化」面板：自定义提示词模板 → 一键调用当前会话模型优化 → 将结果填入输入框或复制。支持内置变量注入、上下文感知、工具感知与迭代优化，全程无需额外 API Key（复用当前会话模型）。
 
-- **适用版本**：QwenPaw 1.1.10 ~ 2.1.0
+- **适用版本**：QwenPaw 1.1.10 ~ 2.3.0
 - **授权**：MIT
 
 ---
@@ -127,14 +127,14 @@ qwenpaw plugin install /path/to/prompt-optimizer-plus --force
 ### 方式二：ZIP 包安装
 
 ```bash
-qwenpaw plugin install ./prompt-optimizer-plus-v1.4.1.zip --force
+qwenpaw plugin install ./prompt-optimizer-plus-v1.4.2.zip --force
 ```
 
 ZIP 格式要求：`plugin.json` 位于压缩包**根目录**（或唯一顶层子目录内），QwenPaw 会自动识别。
 
 ### 方式三：QwenPaw 前端导入
 
-插件管理 → 导入/上传 ZIP 文件，选择 `prompt-optimizer-plus-v1.4.1.zip` 即可。
+插件管理 → 导入/上传 ZIP 文件，选择 `prompt-optimizer-plus-v1.4.2.zip` 即可。
 
 ### 安装后验证
 
@@ -145,7 +145,7 @@ qwenpaw plugin list
 应看到：
 
 ```
-• 提示词增强插件 (v1.4.1)
+• 提示词增强插件 (v1.4.2)
   ID: prompt-optimizer-plus
 ```
 
@@ -326,6 +326,12 @@ WORKING_DIR/plugin_data/prompt-optimizer-plus/
 ---
 
 ## 版本更新摘要
+
+### v1.4.2 (2026-10-11)
+
+- **仓库规范化**：后端入口迁移 `main.py` → `backend/main.py`（plugin.json entry 同步）
+- **新增 MIT LICENSE**：仓库根目录 `LICENSE` 文件，安装包与 GitHub Release 附件同步包含
+- **适配版本上限**：QwenPaw `max` 2.1.0 → 2.3.0（覆盖 2.2.x）
 
 ### v1.4.1 (2026-09-24)
 

@@ -14,12 +14,15 @@ from pathlib import Path
 from qwenpaw.plugins.api import PluginApi
 from qwenpaw.constant import WORKING_DIR
 
-from .backend.store import TemplateStore, SettingsStore
-from .backend.variable_store import VariableStore
-from .backend.optimizer import PromptOptimizer
-from .backend.middleware import PromptInjectMiddleware
-from .backend.project_store import ProjectStore
-from .backend.routes import (
+from .commands import (
+    handle_prompt,
+    init_store as init_cmds_store,
+    init_optimizer as init_cmds_optimizer,
+)
+from .middleware import PromptInjectMiddleware
+from .optimizer import PromptOptimizer
+from .project_store import ProjectStore
+from .routes import (
     router,
     init_store as init_routes_store,
     init_settings_store as init_routes_settings,
@@ -27,11 +30,8 @@ from .backend.routes import (
     init_optimizer as init_routes_optimizer,
     init_project_store as init_routes_project,
 )
-from .backend.commands import (
-    handle_prompt,
-    init_store as init_cmds_store,
-    init_optimizer as init_cmds_optimizer,
-)
+from .store import TemplateStore, SettingsStore
+from .variable_store import VariableStore
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +122,7 @@ class Plugin:
             help_text="提示词优化: /prompt [list|show|optimize|apply|delete] [id]",
         )
 
-        logger.info("prompt-optimizer-plus v1.4.1 registered")
+        logger.info("prompt-optimizer-plus v1.4.2 registered")
 
 
 plugin = Plugin()

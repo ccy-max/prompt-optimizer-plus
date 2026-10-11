@@ -1,14 +1,15 @@
 {
   "id": "prompt-optimizer-plus",
   "name": "提示词增强插件",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "type": "general",
   "author": "Zero",
   "description": "提示词优化插件：在 QwenPaw 聊天输入框提供「✨ 优化」面板，通过自定义模板一键调用当前会话模型优化提示词，无需额外 API Key。支持 8 个内置变量（原始提示词、会话上下文、工具列表、项目信息、迭代结果等）与条件块模板语法；可注入最近 N 轮对话上下文、当前 agent 可用工具信息与当前项目感知（语言/框架/模块/目录结构）；支持迭代优化，基于上次结果连续精炼并显示迭代次数；模板可增删改查、拖拽排序、导出导入配置；优化结果一键填入输入框或复制，带成功提示；弹窗防误触关闭，−收起保留状态、✕关闭全新开始。",
   "entry": {
-    "backend": "main.py",
+    "backend": "backend/main.py",
     "frontend": "frontend/dist/index.js"
   },
+  "license": "MIT",
   "dependencies": [],
   "qwenpaw_version": {
     "min": "1.1.10",
