@@ -1,0 +1,27 @@
+# 打 tag（如 v1.4.1）时自动构建安装包并发布到 GitHub Release
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build installer zip
+        run: bash scripts/build_release.sh
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
