@@ -1,10 +1,17 @@
 # 打 tag（如 v1.4.1）时自动构建安装包并发布到 GitHub Release
+# 同时支持手动触发（workflow_dispatch）用于首次验证
 name: Release
 
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要发布 Release 的已有 tag（如 v1.4.1）
+        required: true
+        default: v1.4.1
 
 jobs:
   build:
@@ -21,6 +28,7 @@ jobs:
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           files: dist/*.zip
           draft: false
           prerelease: false
